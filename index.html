@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reverb Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Kanit', sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(to right, #0A0F1E, #1E2A3A);
+      color: white;
+    }
+
+    header {
+      text-align: center;
+      padding: 1rem;
+      background: #4B6CB7;
+      font-size: 1.8rem;
+      font-weight: bold;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    .input-container {
+      margin-bottom: 2rem;
+    }
+
+    .input-container input {
+      padding: 10px;
+      font-size: 1.2rem;
+      border-radius: 5px;
+      border: none;
+      text-align: center;
+      width: 200px;
+      outline: none;
+      background: #222E50;
+      color: white;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .table-container {
+      width: 80%;
+      max-width: 800px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 2rem;
+      box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    #table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    #table th,
+    #table td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    #table thead {
+      background: rgba(75, 108, 183, 0.4);
+    }
+
+    .copy-btn {
+      margin-left: 10px;
+      padding: 5px 10px;
+      font-size: 0.9rem;
+      border: none;
+      border-radius: 5px;
+      background: #4B6CB7;
+      color: white;
+      cursor: pointer;
+      display: none;
+    }
+
+    .copy-btn:hover {
+      background: #3a5490;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      background: #4B6CB7;
+      font-size: 1rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    Reverb Calculator
+  </header>
+
+  <div class="container">
+    <div class="input-container">
+      <input id="input" type="number" placeholder="Enter your BPM">
+    </div>
+    <div class="table-container">
+      <table id="table">
+        <thead>
+          <tr>
+            <th>Reverb Size</th>
+            <th>Pre-Delay</th>
+            <th>Decay Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hall</td>
+            <td><span id="hall-pd"></span><button class="copy-btn" data-target="hall-pd">Copy</button></td>
+            <td><span id="hall-dt"></span><button class="copy-btn" data-target="hall-dt">Copy</button></td>
+          </tr>
+          <tr>
+            <td>Big Room</td>
+            <td><span id="big-pd"></span><button class="copy-btn" data-target="big-pd">Copy</button></td>
+            <td><span id="big-dt"></span><button class="copy-btn" data-target="big-dt">Copy</button></td>
+          </tr>
+          <tr>
+            <td>Small Room</td>
+            <td><span id="small-pd"></span><button class="copy-btn" data-target="small-pd">Copy</button></td>
+            <td><span id="small-dt"></span><button class="copy-btn" data-target="small-dt">Copy</button></td>
+          </tr>
+          <tr>
+            <td>Tight Ambience</td>
+            <td><span id="tight-pd"></span><button class="copy-btn" data-target="tight-pd">Copy</button></td>
+            <td><span id="tight-dt"></span><button class="copy-btn" data-target="tight-dt">Copy</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2025 Dominatorul
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const bpmInput = document.getElementById('input');
+      const copyButtons = document.querySelectorAll('.copy-btn');
+
+      // Load BPM from cookie (if available)
+      const savedBPM = getCookie('bpm');
+      if (savedBPM) {
+        bpmInput.value = savedBPM;
+        calculateReverb(parseFloat(savedBPM));
+        showCopyButtons();
+      }
+
+      bpmInput.addEventListener('input', () => {
+        const bpmValue = parseFloat(bpmInput.value);
+
+        if (bpmValue > 0) {
+          calculateReverb(bpmValue);
+          showCopyButtons();
+          setCookie('bpm', bpmValue, 365); // Save BPM for 1 year
+        } else {
+          clearValues();
+          hideCopyButtons();
+        }
+      });
+
+      function calculateReverb(bpm) {
+        setValues('hall', bpm, 8, 64);
+        setValues('big', bpm, 4, 64);
+        setValues('small', bpm, 2, 64);
+        setValues('tight', bpm, 1, 128);
+      }
+
+      function setValues(prefix, bpm, multiplier, divisor) {
+        const totalCalc = (60000 / bpm) * multiplier;
+        const preDelayCalc = totalCalc / divisor;
+        const decayCalc = (totalCalc - preDelayCalc) / 1000;
+
+        document.getElementById(`${prefix}-pd`).innerText = `${preDelayCalc.toFixed(2)} ms`;
+        document.getElementById(`${prefix}-dt`).innerText = `${decayCalc.toFixed(5)} s`;
+      }
+
+      function showCopyButtons() {
+        copyButtons.forEach(button => button.style.display = 'inline-block');
+      }
+
+      function hideCopyButtons() {
+        copyButtons.forEach(button => button.style.display = 'none');
+      }
+
+      function clearValues() {
+        ['hall', 'big', 'small', 'tight'].forEach(prefix => {
+          document.getElementById(`${prefix}-pd`).innerText = '';
+          document.getElementById(`${prefix}-dt`).innerText = '';
+        });
+      }
+
+      function setCookie(name, value, days) {
+        const expires = new Date(Date.now() + days * 864e5).toUTCString();
+        document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+      }
+
+      function getCookie(name) {
+        return document.cookie.split('; ').find(row => row.startsWith(name + '='))?.split('=')[1];
+      }
+    });
+  </script>
+</body>
+
+</html>
