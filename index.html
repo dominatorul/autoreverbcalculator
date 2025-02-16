@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reverb Calculator</title>
+  <title>FL Studio Reverb Calculator</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300&display=swap" rel="stylesheet">
   <style>
     * {
@@ -43,6 +43,7 @@
 
     .input-container {
       margin-bottom: 2rem;
+      position: relative;
     }
 
     .input-container input {
@@ -56,6 +57,7 @@
       background: #222E50;
       color: white;
       box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+      cursor: not-allowed;
     }
 
     .table-container {
@@ -92,7 +94,6 @@
       background: #4B6CB7;
       color: white;
       cursor: pointer;
-      display: none;
     }
 
     .copy-btn:hover {
@@ -106,17 +107,27 @@
       font-size: 1rem;
       font-weight: bold;
     }
+
+    .status {
+      position: absolute;
+      bottom: -20px;
+      width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #4B6CB7;
+    }
   </style>
 </head>
 
 <body>
   <header>
-    Reverb Calculator
+    FL Studio Reverb Calculator
   </header>
 
   <div class="container">
     <div class="input-container">
-      <input id="input" type="number" placeholder="Enter your BPM">
+      <input id="input" type="text" readonly>
+      <div class="status" id="status">Connecting to FL Studio...</div>
     </div>
     <div class="table-container">
       <table id="table">
@@ -160,81 +171,76 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const bpmInput = document.getElementById('input');
-      const copyButtons = document.querySelectorAll('.copy-btn');
-      const bpmSource = document.getElementById('bpm-source');
-      let isFL = false;
+      const status = document.getElementById('status');
+      let flConnected = false;
 
-      try {
-        if (typeof FL !== 'undefined') {
-          isFL = true;
-          bpmSource.textContent = 'Auto-BPM: FL Studio Detected';
-          
-          const initialBPM = FL.getProjectBPM();
-          if (initialBPM) {
-            bpmInput.value = initialBPM;
-            calculateReverb(initialBPM);
-          }
+      const updateReverbValues = (bpm) => {
+        const calculateValues = (multiplier, divisor) => {
+          const total = (60000 / bpm) * multiplier;
+          return {
+            preDelay: (total / divisor).toFixed(2) + ' ms',
+            decay: ((total - (total / divisor)) / 1000).toFixed(5) + ' s'
+          };
+        };
 
-          setInterval(() => {
-            const currentBPM = FL.getProjectBPM();
-            if (currentBPM && bpmInput.value !== currentBPM.toString()) {
-              bpmInput.value = currentBPM;
-              calculateReverb(currentBPM);
-            }
-          }, 1000);
-        }
-      } catch (e) {
-        isFL = false;
-        bpmSource.textContent = '';
-      }
+        const types = {
+          hall: calculateValues(8, 64),
+          big: calculateValues(4, 64),
+          small: calculateValues(2, 64),
+          tight: calculateValues(1, 128)
+        };
 
-      bpmInput.addEventListener('input', () => {
-        const bpmValue = parseFloat(bpmInput.value);
-        if (bpmValue > 0) {
-          calculateReverb(bpmValue);
-          copyButtons.forEach(button => button.style.display = 'inline-block');
-        } else {
-          clearValues();
-          copyButtons.forEach(button => button.style.display = 'none');
-        }
-      });
-
-      function calculateReverb(bpm) {
-        setValues('hall', bpm, 8, 64);
-        setValues('big', bpm, 4, 64);
-        setValues('small', bpm, 2, 64);
-        setValues('tight', bpm, 1, 128);
-      }
-
-      function setValues(prefix, bpm, multiplier, divisor) {
-        const totalCalc = (60000 / bpm) * multiplier;
-        const preDelayCalc = totalCalc / divisor;
-        const decayCalc = (totalCalc - preDelayCalc) / 1000;
-
-        document.getElementById(`${prefix}-pd`).innerText = `${preDelayCalc.toFixed(2)} ms`;
-        document.getElementById(`${prefix}-dt`).innerText = `${decayCalc.toFixed(5)} s`;
-      }
-
-      function clearValues() {
-        ['hall', 'big', 'small', 'tight'].forEach(prefix => {
-          document.getElementById(`${prefix}-pd`).innerText = '';
-          document.getElementById(`${prefix}-dt`).innerText = '';
+        Object.entries(types).forEach(([type, values]) => {
+          document.getElementById(`${type}-pd`).textContent = values.preDelay;
+          document.getElementById(`${type}-dt`).textContent = values.decay;
         });
-      }
+      };
+
+      const connectToFL = () => {
+        try {
+          if (typeof FL !== 'undefined') {
+            FL.addEventOnProjectBPMChanged(() => {
+              const bpm = FL.getProjectBPM();
+              if (bpm) {
+                bpmInput.value = `Current BPM: ${bpm}`;
+                updateReverbValues(bpm);
+                status.textContent = 'Connected to FL Studio';
+                status.style.color = '#4B6CB7';
+                flConnected = true;
+              }
+            });
+
+            const initialBPM = FL.getProjectBPM();
+            if (initialBPM) {
+              bpmInput.value = `Current BPM: ${initialBPM}`;
+              updateReverbValues(initialBPM);
+              status.textContent = 'Connected to FL Studio';
+              status.style.color = '#4B6CB7';
+              flConnected = true;
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('FL Studio connection error:', e);
+        }
+
+        if (!flConnected) {
+          status.textContent = 'FL Studio not detected';
+          status.style.color = '#ff4444';
+          bpmInput.value = 'FL Studio required';
+        }
+      };
+
+      connectToFL();
+      setInterval(connectToFL, 3000);
 
       document.querySelectorAll('.copy-btn').forEach(button => {
-        button.addEventListener('click', () => {
-          const targetId = button.getAttribute('data-target');
-          const value = document.getElementById(targetId).innerText;
-          if (value) {
-            navigator.clipboard.writeText(value);
-          }
+        button.addEventListener('click', (e) => {
+          const target = e.target.getAttribute('data-target');
+          const text = document.getElementById(target).textContent;
+          navigator.clipboard.writeText(text);
         });
       });
-
-      if (!isFL) {
-        bpmSource.textContent = 'Manual BPM Input';
-      }
     });
   </script>
 </body>
